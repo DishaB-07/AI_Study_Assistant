@@ -23,3 +23,16 @@
 - **PDF Processing:** PyPDF2 or similar library  
 
 ---
+
+## Deployment
+## 🔗 Live Project Link
+
+You can access the live project here: [https://aistudyassistant.streamlit.app/](https://aistudyassistant.streamlit.app/)
+
+
+To run locally:
+
+pip install -r requirements.txt
+
+
+streamlit run app.py
