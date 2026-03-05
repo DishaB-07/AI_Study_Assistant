@@ -1,0 +1,10 @@
+streamlit
+easyocr
+pypdf
+sentence-transformers
+faiss-cpu
+numpy
+ollama
+pymupdf
+Pillow
+torch
