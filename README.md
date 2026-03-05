@@ -25,10 +25,6 @@
 ---
 
 ## Deployment
-## 🔗 Live Project Link
-
-You can access the live project here: [https://aistudyassistant.streamlit.app/](https://aistudyassistant.streamlit.app/)
-
 
 To run locally:
 
