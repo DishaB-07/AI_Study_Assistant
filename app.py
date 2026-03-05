@@ -9,16 +9,15 @@ from sentence_transformers import SentenceTransformer
 # Embedding model
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 
-# -------------------------
-# Streamlit Page Config
-# -------------------------
-st.set_page_config(page_title="AI Study Assistant", page_icon="📚", layout="centered")
+st.set_page_config(page_title="AI Study Assistant", page_icon="📚")
+
 st.title("📚 AI Study Assistant")
-st.write("Ask questions directly from your handwritten notes using AI.")
+st.write("Ask questions from your handwritten notes using AI")
 
 # -------------------------
-# Initialize Session State
+# Chat history memory
 # -------------------------
+
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
@@ -31,56 +30,60 @@ if "text_chunks" not in st.session_state:
 # -------------------------
 # Upload PDF
 # -------------------------
-st.header("Upload Your Handwritten Notes")
+
+st.header("Upload Study Notes")
 
 uploaded_file = st.file_uploader(
-    "Upload PDF",
-    type=["pdf"],
-    help="Upload your handwritten or typed notes in PDF format."
+    "Upload handwritten PDF",
+    type=["pdf"]
 )
 
 if uploaded_file:
-    with st.spinner("Processing PDF..."):
-        with open("uploaded_file.pdf", "wb") as f:
-            f.write(uploaded_file.read())
 
-        # Extract text and create embeddings
-        text_chunks = extract_text_from_pdf("uploaded_file.pdf")
-        embeddings = create_embeddings(text_chunks)
-        index = create_faiss_index(embeddings)
+    with open("uploaded_file.pdf", "wb") as f:
+        f.write(uploaded_file.read())
 
-        # Save to session
-        st.session_state.index = index
-        st.session_state.text_chunks = text_chunks
+    text_chunks = extract_text_from_pdf("uploaded_file.pdf")
 
-    st.success("✅ Notes indexed successfully! You can now ask questions.")
+    embeddings = create_embeddings(text_chunks)
+
+    index = create_faiss_index(embeddings)
+
+    # store in session
+    st.session_state.index = index
+    st.session_state.text_chunks = text_chunks
+
+    st.success("Notes indexed successfully! You can now ask questions.")
 
 # -------------------------
-# Ask Question
+# Ask question
 # -------------------------
+
 if st.session_state.index is not None:
-    st.header("Ask a Question")
-    question = st.text_input("Type your question here:")
+
+    st.header("Ask a Question from Your Notes")
+
+    question = st.text_input("Enter your question")
 
     if question:
-        with st.spinner("Generating answer..."):
-            # Get query embedding
-            query_embedding = embedding_model.encode([question])
-            distances, indices = search(st.session_state.index, query_embedding)
 
-            # Retrieve relevant text chunks
+        with st.spinner("Generating answer..."):
+
+            query_embedding = embedding_model.encode([question])
+
+            distances, indices = search(
+                st.session_state.index,
+                query_embedding
+            )
+
             retrieved_text = ""
             pages = []
+
             for i in indices[0]:
                 retrieved_text += st.session_state.text_chunks[i][1] + "\n"
                 pages.append(st.session_state.text_chunks[i][0])
 
-            # Compute confidence score (inverse of average distance)
-            avg_distance = np.mean(distances[0])
-            confidence = max(0, 100 - avg_distance * 100)  # scaled 0-100%
-            confidence = round(confidence, 2)
-
-            # Prepare prompt
+            # Create prompt for AI
             prompt = f"""
 Use ONLY the notes below to answer.
 
@@ -94,22 +97,29 @@ If answer not found say:
 "I don't know based on the notes."
 """
 
-            # Get answer from Ollama
             response = ollama.chat(
                 model="phi3:mini",
-                messages=[{"role": "user", "content": prompt}]
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
             )
+
             answer = response["message"]["content"]
 
-        # Display Answer
+            # -------------------------
+            # Calculate confidence score
+            # -------------------------
+            # Using closest chunk distance for better confidence
+            # Scale factor can be adjusted (0.0–1.0)
+            closest_distance = distances[0][0]
+            confidence = max(0, 100 - closest_distance * 50)  # tweak factor to make scores higher
+
         st.subheader("Answer")
         st.write(answer)
 
-        # Display Confidence
         st.subheader("Confidence Score")
-        st.write(f"{confidence}%")
+        st.write(f"{confidence:.2f}%")
 
-        # Display Source Pages
         st.subheader("Source Pages")
         st.write(sorted(list(set(pages))))
 
@@ -117,20 +127,30 @@ If answer not found say:
         st.session_state.chat_history.append({
             "question": question,
             "answer": answer,
-            "confidence": confidence
+            "confidence": confidence,
+            "pages": sorted(list(set(pages)))
         })
 
 # -------------------------
-# Display Chat History
+# Display chat history
 # -------------------------
+
 if st.session_state.chat_history:
+
     st.header("Chat History")
+
     for chat in reversed(st.session_state.chat_history):
-        with st.container():
-            st.markdown("**Question:**")
-            st.write(chat["question"])
-            st.markdown("**Answer:**")
-            st.write(chat["answer"])
-            st.markdown("**Confidence:**")
-            st.write(f"{chat['confidence']}%")
-            st.markdown("---")
+
+        st.markdown("**Question:**")
+        st.write(chat["question"])
+
+        st.markdown("**Answer:**")
+        st.write(chat["answer"])
+
+        st.markdown("**Confidence Score:**")
+        st.write(f"{chat['confidence']:.2f}%")
+
+        st.markdown("**Source Pages:**")
+        st.write(chat['pages'])
+
+        st.markdown("---")
